@@ -5,6 +5,7 @@ import { createMemo, createResource, createEffect, onMount, onCleanup, For, Show
 import { createStore } from "solid-js/store"
 import { useSDK } from "@tui/context/sdk"
 import { useSync } from "@tui/context/sync"
+import { useLocal } from "@tui/context/local"
 import { useTheme, selectedForeground } from "@tui/context/theme"
 import { SplitBorder } from "@tui/component/border"
 import { useCommandDialog } from "@tui/component/dialog-command"
@@ -40,6 +41,7 @@ export function Autocomplete(props: {
 }) {
   const sdk = useSDK()
   const sync = useSync()
+  const local = useLocal()
   const command = useCommandDialog()
   const { theme } = useTheme()
   const dimensions = useTerminalDimensions()
@@ -211,10 +213,14 @@ export function Autocomplete(props: {
   const commands = createMemo((): AutocompleteOption[] => {
     const results: AutocompleteOption[] = []
     const s = session()
+
     for (const command of sync.data.command) {
+      if (command.sessionOnly && !s) continue
+
       results.push({
         display: "/" + command.name,
         description: command.description,
+        aliases: command.aliases?.map((a) => "/" + a),
         onSelect: () => {
           const newText = "/" + command.name + " "
           const cursor = props.input().logicalCursor

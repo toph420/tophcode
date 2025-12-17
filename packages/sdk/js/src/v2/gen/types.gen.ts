@@ -90,6 +90,8 @@ export type UserMessage = {
   tools?: {
     [key: string]: boolean
   }
+  sentEstimate?: number
+  contextEstimate?: number
 }
 
 export type ProviderAuthError = {
@@ -163,6 +165,10 @@ export type AssistantMessage = {
       write: number
     }
   }
+  outputEstimate?: number
+  reasoningEstimate?: number
+  contextEstimate?: number
+  sentEstimate?: number
   finish?: string
 }
 
@@ -477,6 +483,131 @@ export type EventPermissionReplied = {
   }
 }
 
+export type EventTuiPromptAppend = {
+  type: "tui.prompt.append"
+  properties: {
+    text: string
+  }
+}
+
+export type EventTuiCommandExecute = {
+  type: "tui.command.execute"
+  properties: {
+    command:
+      | "session.list"
+      | "session.new"
+      | "session.share"
+      | "session.interrupt"
+      | "session.compact"
+      | "session.page.up"
+      | "session.page.down"
+      | "session.half.page.up"
+      | "session.half.page.down"
+      | "session.first"
+      | "session.last"
+      | "prompt.clear"
+      | "prompt.submit"
+      | "agent.cycle"
+      | string
+  }
+}
+
+export type EventTuiToastShow = {
+  type: "tui.toast.show"
+  properties: {
+    title?: string
+    message: string
+    variant: "info" | "success" | "warning" | "error"
+    /**
+     * Duration in milliseconds
+     */
+    duration?: number
+  }
+}
+
+export type EventTuiQuestionRequest = {
+  type: "tui.question.request"
+  properties: {
+    questionID: string
+    sessionID: string
+    messageID: string
+    callID: string
+    questions: Array<
+      | {
+          type: "select"
+          id: string
+          message: string
+          options: Array<{
+            value: string
+            label: string
+            hint?: string
+          }>
+          defaultValue?: string
+        }
+      | {
+          type: "multi-select"
+          id: string
+          message: string
+          options: Array<{
+            value: string
+            label: string
+            hint?: string
+          }>
+          defaultValue?: Array<string>
+          min?: number
+          max?: number
+        }
+      | {
+          type: "confirm"
+          id: string
+          message: string
+          defaultValue?: boolean
+        }
+      | {
+          type: "text"
+          id: string
+          message: string
+          placeholder?: string
+          defaultValue?: string
+          validate?: string
+        }
+    >
+    title?: string
+    timeout?: number
+  }
+}
+
+export type EventTuiQuestionResponse = {
+  type: "tui.question.response"
+  properties: {
+    questionID: string
+    status: "ok" | "cancel" | "timeout"
+    answers?: Array<
+      | {
+          type: "select"
+          id: string
+          value: string
+        }
+      | {
+          type: "multi-select"
+          id: string
+          values: Array<string>
+        }
+      | {
+          type: "confirm"
+          id: string
+          value: boolean
+        }
+      | {
+          type: "text"
+          id: string
+          value: string
+        }
+    >
+    comment?: string
+  }
+}
+
 export type EventFileEdited = {
   type: "file.edited"
   properties: {
@@ -639,48 +770,6 @@ export type EventVcsBranchUpdated = {
   }
 }
 
-export type EventTuiPromptAppend = {
-  type: "tui.prompt.append"
-  properties: {
-    text: string
-  }
-}
-
-export type EventTuiCommandExecute = {
-  type: "tui.command.execute"
-  properties: {
-    command:
-      | "session.list"
-      | "session.new"
-      | "session.share"
-      | "session.interrupt"
-      | "session.compact"
-      | "session.page.up"
-      | "session.page.down"
-      | "session.half.page.up"
-      | "session.half.page.down"
-      | "session.first"
-      | "session.last"
-      | "prompt.clear"
-      | "prompt.submit"
-      | "agent.cycle"
-      | string
-  }
-}
-
-export type EventTuiToastShow = {
-  type: "tui.toast.show"
-  properties: {
-    title?: string
-    message: string
-    variant: "info" | "success" | "warning" | "error"
-    /**
-     * Duration in milliseconds
-     */
-    duration?: number
-  }
-}
-
 export type Pty = {
   id: string
   title: string
@@ -747,6 +836,11 @@ export type Event =
   | EventMessagePartRemoved
   | EventPermissionUpdated
   | EventPermissionReplied
+  | EventTuiPromptAppend
+  | EventTuiCommandExecute
+  | EventTuiToastShow
+  | EventTuiQuestionRequest
+  | EventTuiQuestionResponse
   | EventFileEdited
   | EventTodoUpdated
   | EventSessionStatus
@@ -760,9 +854,6 @@ export type Event =
   | EventSessionError
   | EventFileWatcherUpdated
   | EventVcsBranchUpdated
-  | EventTuiPromptAppend
-  | EventTuiCommandExecute
-  | EventTuiToastShow
   | EventPtyCreated
   | EventPtyUpdated
   | EventPtyExited
@@ -819,6 +910,10 @@ export type KeybindsConfig = {
    */
   scrollbar_toggle?: string
   /**
+   * Toggle session header visibility
+   */
+  header_toggle?: string
+  /**
    * Toggle username visibility
    */
   username_toggle?: string
@@ -858,6 +953,10 @@ export type KeybindsConfig = {
    * Compact the session
    */
   session_compact?: string
+  /**
+   * Search in session messages
+   */
+  session_search?: string
   /**
    * Scroll messages up by one page
    */
@@ -1106,6 +1205,10 @@ export type KeybindsConfig = {
    * Previous child session
    */
   session_child_cycle_reverse?: string
+  /**
+   * Go to parent session
+   */
+  session_parent?: string
   /**
    * Suspend terminal
    */
@@ -1476,7 +1579,13 @@ export type Config = {
   instructions?: Array<string>
   layout?: LayoutConfig
   permission?: {
-    edit?: "ask" | "allow" | "deny"
+    edit?:
+      | "ask"
+      | "allow"
+      | "deny"
+      | {
+          [key: string]: "ask" | "allow" | "deny"
+        }
     bash?:
       | "ask"
       | "allow"
@@ -1611,6 +1720,8 @@ export type Command = {
   model?: string
   template: string
   subtask?: boolean
+  sessionOnly?: boolean
+  aliases?: Array<string>
 }
 
 export type Model = {
@@ -1759,7 +1870,13 @@ export type Agent = {
   temperature?: number
   color?: string
   permission: {
-    edit: "ask" | "allow" | "deny"
+    edit:
+      | "ask"
+      | "allow"
+      | "deny"
+      | {
+          [key: string]: "ask" | "allow" | "deny"
+        }
     bash: {
       [key: string]: "ask" | "allow" | "deny"
     }
@@ -4017,7 +4134,12 @@ export type TuiShowToastResponses = {
 export type TuiShowToastResponse = TuiShowToastResponses[keyof TuiShowToastResponses]
 
 export type TuiPublishData = {
-  body?: EventTuiPromptAppend | EventTuiCommandExecute | EventTuiToastShow
+  body?:
+    | EventTuiPromptAppend
+    | EventTuiCommandExecute
+    | EventTuiToastShow
+    | EventTuiQuestionRequest
+    | EventTuiQuestionResponse
   path?: never
   query?: {
     directory?: string

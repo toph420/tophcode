@@ -32,6 +32,7 @@ export type PromptProps = {
   sessionID?: string
   disabled?: boolean
   onSubmit?: () => void
+  onSearchToggle?: () => void
   ref?: (ref: PromptRef) => void
   hint?: JSX.Element
   showPlaceholder?: boolean
@@ -513,14 +514,15 @@ export function Prompt(props: PromptProps) {
       inputText.startsWith("/") &&
       iife(() => {
         const command = inputText.split(" ")[0].slice(1)
-        console.log(command)
-        return sync.data.command.some((x) => x.name === command)
+        return sync.data.command.some((x) => x.name === command || x.aliases?.includes(command))
       })
     ) {
       let [command, ...args] = inputText.split(" ")
+      const commandName = command.slice(1)
+      const resolved = sync.data.command.find((x) => x.name === commandName || x.aliases?.includes(commandName))
       sdk.client.session.command({
         sessionID,
-        command: command.slice(1),
+        command: resolved?.name ?? commandName,
         arguments: args.join(" "),
         agent: local.agent.current().name,
         model: `${selectedModel.providerID}/${selectedModel.modelID}`,
@@ -569,6 +571,22 @@ export function Prompt(props: PromptProps) {
     input.clear()
   }
   const exit = useExit()
+
+  let lastExitAttempt = 0
+
+  async function tryExit() {
+    const now = Date.now()
+    if (now - lastExitAttempt < 2000) {
+      await exit()
+      return
+    }
+    lastExitAttempt = now
+    toast.show({
+      variant: "warning",
+      message: "Press again to exit",
+      duration: 2000,
+    })
+  }
 
   function pasteText(text: string, virtualText: string) {
     const currentOffset = input.visualCursor.offset
@@ -742,12 +760,13 @@ export function Prompt(props: PromptProps) {
                   return
                 }
                 if (keybind.match("app_exit", e)) {
-                  if (store.prompt.input === "") {
-                    await exit()
-                    // Don't preventDefault - let textarea potentially handle the event
-                    e.preventDefault()
-                    return
-                  }
+                  await tryExit()
+                  return
+                }
+                if (keybind.match("session_search", e)) {
+                  props.onSearchToggle?.()
+                  e.preventDefault()
+                  return
                 }
                 if (e.name === "!" && input.visualCursor.offset === 0) {
                   setStore("mode", "shell")

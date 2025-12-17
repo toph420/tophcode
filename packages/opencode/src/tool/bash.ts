@@ -15,8 +15,35 @@ import { fileURLToPath } from "url"
 import { Flag } from "@/flag/flag.ts"
 import path from "path"
 import { Shell } from "@/shell/shell"
+import { ptyToText } from "ghostty-opentui"
 
 const MAX_OUTPUT_LENGTH = Flag.OPENCODE_EXPERIMENTAL_BASH_MAX_OUTPUT_LENGTH || 30_000
+
+/**
+ * Process carriage returns in output text.
+ * When \r appears mid-line, subsequent text overwrites from line start.
+ * This handles cases where ptyToText doesn't fully process terminal sequences.
+ */
+function processCarriageReturns(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => {
+      if (!line.includes("\r")) return line
+      // Process each segment separated by \r, keeping only what would be visible
+      const segments = line.split("\r")
+      let result = ""
+      for (const segment of segments) {
+        // Each \r returns cursor to start, so new text overwrites from position 0
+        if (segment.length >= result.length) {
+          result = segment
+        } else {
+          result = segment + result.slice(segment.length)
+        }
+      }
+      return result
+    })
+    .join("\n")
+}
 const DEFAULT_TIMEOUT = Flag.OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS || 2 * 60 * 1000
 
 export const log = Log.create({ service: "bash-tool" })
@@ -200,12 +227,20 @@ export const BashTool = Tool.define("bash", async () => {
         cwd,
         env: {
           ...process.env,
+          FORCE_COLOR: "3",
+          CLICOLOR: "1",
+          CLICOLOR_FORCE: "1",
+          TERM: "xterm-256color",
+          TERM_PROGRAM: "bash-tool",
+          PY_COLORS: "1",
+          ANSICON: "1",
+          NO_COLOR: undefined,
         },
         stdio: ["ignore", "pipe", "pipe"],
         detached: process.platform !== "win32",
       })
 
-      let output = ""
+      let rawOutput = ""
 
       // Initialize metadata with empty output
       ctx.metadata({
@@ -216,11 +251,11 @@ export const BashTool = Tool.define("bash", async () => {
       })
 
       const append = (chunk: Buffer) => {
-        if (output.length <= MAX_OUTPUT_LENGTH) {
-          output += chunk.toString()
+        if (rawOutput.length <= MAX_OUTPUT_LENGTH) {
+          rawOutput += chunk.toString()
           ctx.metadata({
             metadata: {
-              output,
+              output: rawOutput,
               description: params.description,
             },
           })
@@ -272,10 +307,10 @@ export const BashTool = Tool.define("bash", async () => {
         })
       })
 
-      let resultMetadata: String[] = ["<bash_metadata>"]
+      const resultMetadata: string[] = ["<bash_metadata>"]
 
-      if (output.length > MAX_OUTPUT_LENGTH) {
-        output = output.slice(0, MAX_OUTPUT_LENGTH)
+      if (rawOutput.length > MAX_OUTPUT_LENGTH) {
+        rawOutput = rawOutput.slice(0, MAX_OUTPUT_LENGTH)
         resultMetadata.push(`bash tool truncated output as it exceeded ${MAX_OUTPUT_LENGTH} char limit`)
       }
 
@@ -287,19 +322,26 @@ export const BashTool = Tool.define("bash", async () => {
         resultMetadata.push("User aborted the command")
       }
 
-      if (resultMetadata.length > 1) {
-        resultMetadata.push("</bash_metadata>")
-        output += "\n\n" + resultMetadata.join("\n")
-      }
+      const outputForModel = processCarriageReturns(ptyToText(rawOutput, { rows: 120, cols: 256 }))
+
+      const finalRawOutput = (() => {
+        if (resultMetadata.length <= 1) return rawOutput
+        return rawOutput + "\n\n" + resultMetadata.concat(["</bash_metadata>"]).join("\n")
+      })()
+
+      const finalOutputForModel = (() => {
+        if (resultMetadata.length <= 1) return outputForModel
+        return outputForModel + "\n\n" + resultMetadata.concat(["</bash_metadata>"]).join("\n")
+      })()
 
       return {
         title: params.description,
         metadata: {
-          output,
+          output: finalRawOutput,
           exit: proc.exitCode,
           description: params.description,
         },
-        output,
+        output: finalOutputForModel,
       }
     },
   }

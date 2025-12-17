@@ -29,6 +29,8 @@ import { ToastProvider, useToast } from "./ui/toast"
 import { ExitProvider, useExit } from "./context/exit"
 import { Session as SessionApi } from "@/session"
 import { TuiEvent } from "./event"
+import { DialogQuestion } from "@tui/component/dialog-question"
+import type { Question } from "@/question"
 import { KVProvider, useKV } from "./context/kv"
 import { Provider } from "@/provider/provider"
 import { ArgsProvider, useArgs, type Args } from "./context/args"
@@ -169,7 +171,7 @@ function App() {
   const local = useLocal()
   const kv = useKV()
   const command = useCommandDialog()
-  const { event } = useSDK()
+  const { event, client: sdkClient } = useSDK()
   const toast = useToast()
   const { theme, mode, setMode } = useTheme()
   const sync = useSync()
@@ -482,6 +484,55 @@ function App() {
     })
   })
 
+  // Handle question requests from the Ask tool
+  event.on(TuiEvent.QuestionRequest.type as any, (evt: any) => {
+    const request = evt.properties as Question.Request
+    dialog.replace(
+      () => (
+        <DialogQuestion
+          request={request}
+          onSubmit={(answers) => {
+            sdkClient.tui.publish({
+              body: {
+                type: TuiEvent.QuestionResponse.type,
+                properties: {
+                  questionID: request.questionID,
+                  status: "ok",
+                  answers,
+                },
+              },
+            } as any)
+          }}
+          onCancel={() => {
+            sdkClient.tui.publish({
+              body: {
+                type: TuiEvent.QuestionResponse.type,
+                properties: {
+                  questionID: request.questionID,
+                  status: "cancel",
+                  answers: [],
+                },
+              },
+            } as any)
+          }}
+        />
+      ),
+      () => {
+        // On escape/close, send cancel response
+        sdkClient.tui.publish({
+          body: {
+            type: TuiEvent.QuestionResponse.type,
+            properties: {
+              questionID: request.questionID,
+              status: "cancel",
+              answers: [],
+            },
+          },
+        } as any)
+      },
+    )
+  })
+
   event.on(SessionApi.Event.Deleted.type, (evt) => {
     if (route.data.type === "session" && route.data.sessionID === evt.properties.info.id) {
       route.navigate({ type: "home" })
@@ -517,7 +568,7 @@ function App() {
     toast.show({
       variant: "success",
       title: "Update Complete",
-      message: `OpenCode updated to v${evt.properties.version}`,
+      message: `shuvcode updated to v${evt.properties.version}`,
       duration: 5000,
     })
   })
@@ -526,7 +577,7 @@ function App() {
     toast.show({
       variant: "info",
       title: "Update Available",
-      message: `OpenCode v${evt.properties.version} is available. Run 'opencode upgrade' to update manually.`,
+      message: `shuvcode v${evt.properties.version} is available. Run 'shuvcode upgrade' to update manually.`,
       duration: 10000,
     })
   })

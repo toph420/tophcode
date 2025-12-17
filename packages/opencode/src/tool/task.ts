@@ -11,6 +11,8 @@ import { iife } from "@/util/iife"
 import { defer } from "@/util/defer"
 import { Config } from "../config/config"
 
+export { DESCRIPTION as TASK_DESCRIPTION }
+
 export const TaskTool = Tool.define("task", async () => {
   const agents = await Agent.list().then((x) => x.filter((a) => a.mode !== "primary"))
   const description = DESCRIPTION.replace(

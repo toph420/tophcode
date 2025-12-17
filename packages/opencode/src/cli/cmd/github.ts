@@ -405,7 +405,7 @@ export const GithubRunCommand = cmd({
           ? (payload as PullRequestReviewCommentEvent).pull_request.number
           : (payload as IssueCommentEvent).issue.number
       const runUrl = `/${owner}/${repo}/actions/runs/${runId}`
-      const shareBaseUrl = isMock ? "https://dev.opencode.ai" : "https://opencode.ai"
+      const shareBaseUrl = isMock ? "https://share.dev.shuv.ai" : "https://share.shuv.ai"
 
       let appToken: string
       let octoRest: Octokit
@@ -823,15 +823,34 @@ export const GithubRunCommand = cmd({
               },
             })
 
-        if (!response.ok) {
-          const responseJson = (await response.json()) as { error?: string }
-          throw new Error(
-            `App token exchange failed: ${response.status} ${response.statusText} - ${responseJson.error}`,
-          )
+        const safeParseJson = (input: string) => {
+          try {
+            return JSON.parse(input)
+          } catch {
+            return undefined
+          }
         }
 
-        const responseJson = (await response.json()) as { token: string }
-        return responseJson.token
+        const type = response.headers.get("content-type") || ""
+        const body = await response.text()
+        const json = type.includes("json") || body.trim().startsWith("{") ? safeParseJson(body) : undefined
+
+        if (!response.ok) {
+          const message =
+            json && typeof json === "object" && "error" in json
+              ? (json as { error?: string }).error
+              : body.slice(0, 500) || "unknown error"
+
+          throw new Error(`App token exchange failed: ${response.status} ${response.statusText} - ${message}`)
+        }
+
+        if (json && typeof json === "object" && "token" in json) {
+          return (json as { token: string }).token
+        }
+
+        throw new Error(
+          `App token exchange failed: missing token in response (${response.status} ${response.statusText}) - ${body.slice(0, 500)}`,
+        )
       }
 
       async function configureGit(appToken: string) {

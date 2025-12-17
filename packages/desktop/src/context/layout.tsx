@@ -1,13 +1,21 @@
 import { createStore, produce } from "solid-js/store"
-import { batch, createMemo, onMount } from "solid-js"
+import { batch, createEffect, createMemo, onMount } from "solid-js"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { makePersisted } from "@solid-primitives/storage"
 import { useGlobalSync } from "./global-sync"
 import { useGlobalSDK } from "./global-sdk"
 import { Project } from "@opencode-ai/sdk/v2"
+import { applyTheme, DEFAULT_THEME_ID } from "@/theme/apply-theme"
+import { applyFontWithLoad } from "@/fonts/apply-font"
+import { getFontById, FONTS } from "@/fonts/font-definitions"
 
 const AVATAR_COLOR_KEYS = ["pink", "mint", "orange", "purple", "cyan", "lime"] as const
 export type AvatarColorKey = (typeof AVATAR_COLOR_KEYS)[number]
+
+type SessionTabs = {
+  active?: string
+  all: string[]
+}
 
 export function getAvatarColors(key?: string) {
   if (key && AVATAR_COLOR_KEYS.includes(key as AvatarColorKey)) {
@@ -22,10 +30,7 @@ export function getAvatarColors(key?: string) {
   }
 }
 
-type SessionTabs = {
-  active?: string
-  all: string[]
-}
+type Dialog = "provider" | "model" | "connect"
 
 export const { use: useLayout, provider: LayoutProvider } = createSimpleContext({
   name: "Layout",
@@ -46,13 +51,27 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         review: {
           state: "pane" as "pane" | "tab",
         },
+        theme: DEFAULT_THEME_ID,
+        font: FONTS[0].id,
         sessionTabs: {} as Record<string, SessionTabs>,
       }),
       {
-        name: "layout.v3",
+        name: "default-layout.v9",
       },
     )
-
+    const [ephemeral, setEphemeral] = createStore<{
+      connect: {
+        provider?: string
+        state?: "pending" | "complete" | "error"
+        error?: string
+      }
+      dialog: {
+        open?: Dialog
+      }
+    }>({
+      connect: {},
+      dialog: {},
+    })
     const usedColors = new Set<AvatarColorKey>()
 
     function pickAvailableColor(): AvatarColorKey {
@@ -90,6 +109,15 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           return globalSync.project.loadSessions(project.worktree)
         }),
       )
+    })
+
+    createEffect(() => {
+      applyTheme(store.theme)
+    })
+
+    createEffect(() => {
+      const font = getFontById(store.font) ?? FONTS[0]
+      applyFontWithLoad(font)
     })
 
     return {
@@ -159,6 +187,70 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
         tab() {
           setStore("review", "state", "tab")
+        },
+      },
+      dialog: {
+        opened: createMemo(() => ephemeral.dialog?.open),
+        open(dialog: Dialog) {
+          batch(() => {
+            if (dialog !== "connect") {
+              setEphemeral("connect", {})
+            }
+            setEphemeral("dialog", "open", dialog)
+          })
+        },
+        close(dialog: Dialog) {
+          if (ephemeral.dialog.open === dialog) {
+            setEphemeral(
+              produce((state) => {
+                state.dialog.open = undefined
+                state.connect = {}
+              }),
+            )
+          }
+        },
+        connect(provider: string) {
+          setEphemeral(
+            produce((state) => {
+              state.dialog.open = "connect"
+              state.connect = { provider, state: "pending" }
+            }),
+          )
+        },
+      },
+      connect: {
+        provider: createMemo(() => ephemeral.connect.provider),
+        state: createMemo(() => ephemeral.connect.state),
+        complete() {
+          setEphemeral(
+            produce((state) => {
+              state.dialog.open = "model"
+              state.connect.state = "complete"
+            }),
+          )
+        },
+        error(message: string) {
+          setEphemeral(
+            produce((state) => {
+              state.connect.state = "error"
+              state.connect.error = message
+            }),
+          )
+        },
+        clear() {
+          setEphemeral("connect", {})
+        },
+      },
+      theme: {
+        current: createMemo(() => store.theme),
+        set(themeId: string) {
+          setStore("theme", themeId)
+        },
+      },
+      font: {
+        current: createMemo(() => store.font),
+        set(fontId: string) {
+          setStore("font", fontId)
         },
       },
       tabs(sessionKey: string) {

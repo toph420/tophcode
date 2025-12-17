@@ -43,6 +43,7 @@ import { SessionStatus } from "./status"
 import { LLM } from "./llm"
 import { iife } from "@/util/iife"
 import { Shell } from "@/shell/shell"
+import { Token } from "@/util/token"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -990,6 +991,23 @@ export namespace SessionPrompt {
       },
     )
 
+    // Calculate sentEstimate for user messages - tokens in user's text parts
+    const sentEstimate = parts
+      .filter((p): p is MessageV2.TextPart => p.type === "text" && !p.ignored)
+      .reduce((sum, p) => sum + Token.estimate(p.text), 0)
+    info.sentEstimate = sentEstimate
+
+    // Calculate contextEstimate - includes prior context plus current user message
+    const msgs = await MessageV2.filterCompacted(MessageV2.stream(input.sessionID))
+    const lastAssistantMsg = msgs.findLast((m) => m.info.role === "assistant")?.info as MessageV2.Assistant | undefined
+    const priorContext = lastAssistantMsg?.contextEstimate ?? lastAssistantMsg?.tokens?.input ?? 0
+    // Calculate tool result tokens from the last assistant's tool parts
+    const lastAssistantParts = lastAssistantMsg
+      ? (msgs.find((m) => m.info.id === lastAssistantMsg.id)?.parts.filter((p) => p.type === "tool") ?? [])
+      : []
+    const toolResultTokens = Token.calculateToolResultTokens(lastAssistantParts)
+    info.contextEstimate = priorContext + sentEstimate + toolResultTokens
+
     await Session.updateMessage(info)
     for (const part of parts) {
       await Session.updatePart(part)
@@ -1282,7 +1300,59 @@ export namespace SessionPrompt {
   export async function command(input: CommandInput) {
     log.info("command", input)
     const command = await Command.get(input.command)
-    const agentName = command.agent ?? input.agent ?? "build"
+    const agentName = command?.agent ?? input.agent ?? "build"
+
+    const plugins = await Plugin.list()
+    for (const plugin of plugins) {
+      const pluginCommands = plugin["plugin.command"]
+      const pluginCommand = pluginCommands?.[input.command]
+      if (!pluginCommand) continue
+
+      const client = await Plugin.client()
+      try {
+        await pluginCommand.execute({ sessionID: input.sessionID, client })
+      } catch (error) {
+        log.error("plugin command failed", {
+          command: input.command,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        return await SessionPrompt.prompt({
+          sessionID: input.sessionID,
+          agent: agentName,
+          parts: [
+            {
+              type: "text",
+              text: `Plugin command "/${input.command}" failed: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        })
+      }
+      const last = await Session.messages({ sessionID: input.sessionID, limit: 1 })
+      const message = last.at(0)
+      if (message) return message
+      return await SessionPrompt.prompt({
+        sessionID: input.sessionID,
+        agent: agentName,
+        parts: [
+          {
+            type: "text",
+            text: "",
+          },
+        ],
+      })
+    }
+
+    if (!command)
+      return await SessionPrompt.prompt({
+        sessionID: input.sessionID,
+        agent: agentName,
+        parts: [
+          {
+            type: "text",
+            text: "",
+          },
+        ],
+      })
 
     const raw = input.arguments.match(argsRegex) ?? []
     const args = raw.map((arg) => arg.replace(quoteTrimRegex, ""))

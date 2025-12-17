@@ -86,7 +86,7 @@ export const { use: useGlobalSync, provider: GlobalSyncProvider } = createSimple
           session_status: {},
           session_diff: {},
           todo: {},
-          limit: 5,
+          limit: 10,
           message: {},
           part: {},
           node: [],
@@ -124,7 +124,8 @@ export const { use: useGlobalSync, provider: GlobalSyncProvider } = createSimple
       })
       const load = {
         project: () => sdk.project.current().then((x) => setStore("project", x.data!.id)),
-        provider: () => sdk.provider.list().then((x) => setStore("provider", x.data!)),
+        provider: () =>
+          sdk.provider.list().then((x) => setStore("provider", x.data ?? { all: [], connected: [], default: {} })),
         path: () => sdk.path.get().then((x) => setStore("path", x.data!)),
         agent: () => sdk.app.agents().then((x) => setStore("agent", x.data ?? [])),
         command: () => sdk.command.list().then((x) => setStore("command", x.data ?? [])),
@@ -286,13 +287,14 @@ export const { use: useGlobalSync, provider: GlobalSyncProvider } = createSimple
           setGlobalStore("path", x.data!)
         }),
         globalSDK.client.project.list().then(async (x) => {
+          const data = Array.isArray(x.data) ? x.data : []
           setGlobalStore(
             "project",
-            x.data!.filter((p) => !p.worktree.includes("opencode-test")).sort((a, b) => a.id.localeCompare(b.id)),
+            data.filter((p) => !p.worktree.includes("opencode-test")).sort((a, b) => a.id.localeCompare(b.id)),
           )
         }),
         globalSDK.client.provider.list().then((x) => {
-          setGlobalStore("provider", x.data ?? {})
+          setGlobalStore("provider", x.data ?? { all: [], connected: [], default: {} })
         }),
         globalSDK.client.provider.auth().then((x) => {
           setGlobalStore("provider_auth", x.data ?? {})

@@ -94,6 +94,9 @@ export namespace SessionCompaction {
     const model = agent.model
       ? await Provider.getModel(agent.model.providerID, agent.model.modelID)
       : await Provider.getModel(userMessage.model.providerID, userMessage.model.modelID)
+    const lastFinished = input.messages.find((m) => m.info.role === "assistant" && m.info.finish)?.info as
+      | MessageV2.Assistant
+      | undefined
     const msg = (await Session.updateMessage({
       id: Identifier.ascending("message"),
       role: "assistant",
@@ -118,6 +121,10 @@ export namespace SessionCompaction {
       time: {
         created: Date.now(),
       },
+      outputEstimate: lastFinished?.outputEstimate,
+      reasoningEstimate: lastFinished?.reasoningEstimate,
+      contextEstimate: lastFinished?.contextEstimate,
+      sentEstimate: lastFinished?.sentEstimate,
     })) as MessageV2.Assistant
     const processor = SessionProcessor.create({
       assistantMessage: msg,

@@ -1,4 +1,5 @@
 import type { Hooks, PluginInput, Plugin as PluginInstance } from "@opencode-ai/plugin"
+import { pathToFileURL } from "node:url"
 import { Config } from "../config/config"
 import { Bus } from "../bus"
 import { Log } from "../util/log"
@@ -7,6 +8,7 @@ import { Server } from "../server/server"
 import { BunProc } from "../bun"
 import { Instance } from "../project/instance"
 import { Flag } from "../flag/flag"
+import * as path from "node:path"
 
 export namespace Plugin {
   const log = Log.create({ service: "plugin" })
@@ -33,16 +35,50 @@ export namespace Plugin {
     }
     for (let plugin of plugins) {
       log.info("loading plugin", { path: plugin })
+      let pluginUrl: string
       if (!plugin.startsWith("file://")) {
         const lastAtIndex = plugin.lastIndexOf("@")
         const pkg = lastAtIndex > 0 ? plugin.substring(0, lastAtIndex) : plugin
         const version = lastAtIndex > 0 ? plugin.substring(lastAtIndex + 1) : "latest"
-        plugin = await BunProc.install(pkg, version)
+        // BunProc.install now returns the bundled file path directly
+        const pluginPath = await BunProc.install(pkg, version)
+        pluginUrl = pathToFileURL(pluginPath).href
+      } else {
+        // Resolve relative file:// paths against the working directory
+        const filePath = plugin.substring("file://".length)
+        if (!path.isAbsolute(filePath)) {
+          pluginUrl = pathToFileURL(path.resolve(Instance.directory, filePath)).href
+        } else {
+          pluginUrl = pathToFileURL(filePath).href
+        }
       }
-      const mod = await import(plugin)
-      for (const [_name, fn] of Object.entries<PluginInstance>(mod)) {
-        const init = await fn(input)
-        hooks.push(init)
+      try {
+        // Use dynamic import() with absolute file:// URLs for ES module compatibility
+        // pathToFileURL ensures proper URL encoding regardless of import.meta.url context
+        const mod = await import(pluginUrl)
+        for (const [_name, fn] of Object.entries<PluginInstance>(mod)) {
+          const init = await fn(input)
+          hooks.push(init)
+        }
+      } catch (e) {
+        const err = e as Error
+        // Check for module resolution issues
+        if (err.message?.includes("Cannot find module")) {
+          log.error("failed to load plugin", {
+            plugin,
+            error: err.message,
+            hint:
+              process.platform === "win32"
+                ? "This plugin may use subpath exports which have known issues on Windows."
+                : "Check that the plugin is installed correctly.",
+          })
+        } else {
+          log.error("failed to load plugin", {
+            plugin,
+            error: err.message,
+          })
+        }
+        throw e
       }
     }
 
@@ -53,7 +89,7 @@ export namespace Plugin {
   })
 
   export async function trigger<
-    Name extends Exclude<keyof Required<Hooks>, "auth" | "event" | "tool">,
+    Name extends Exclude<keyof Required<Hooks>, "auth" | "event" | "tool" | "plugin.command">,
     Input = Parameters<Required<Hooks>[Name]>[0],
     Output = Parameters<Required<Hooks>[Name]>[1],
   >(name: Name, input: Input, output: Output): Promise<Output> {
@@ -73,11 +109,15 @@ export namespace Plugin {
     return state().then((x) => x.hooks)
   }
 
+  export async function client() {
+    return state().then((x) => x.input.client)
+  }
+
   export async function init() {
     const hooks = await state().then((x) => x.hooks)
     const config = await Config.get()
     for (const hook of hooks) {
-      await hook.config?.(config)
+      await hook.config?.(config as any)
     }
     Bus.subscribeAll(async (input) => {
       const hooks = await state().then((x) => x.hooks)

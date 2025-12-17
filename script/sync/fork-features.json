@@ -1,0 +1,439 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Fork-specific features from upstream PRs that must be preserved during merges",
+  "lastUpdated": "2025-12-15",
+  "apiDependencies": [
+    {
+      "api": "useDialog",
+      "location": "packages/ui/src/context/dialog.tsx",
+      "description": "Dialog context API used by fork-specific components",
+      "currentSignature": "{ show(element, onClose?), close(), active }",
+      "affectedFiles": [
+        "packages/desktop/src/components/font-picker.tsx",
+        "packages/desktop/src/components/theme-picker.tsx"
+      ],
+      "migrationHistory": [
+        {
+          "version": "v1.0.162",
+          "change": "dialog.replace() -> dialog.show(), dialog.pop() -> dialog.close()"
+        }
+      ]
+    }
+  ],
+  "features": [
+    {
+      "pr": 4898,
+      "title": "Search in messages",
+      "author": "OpeOginni",
+      "status": "open",
+      "description": "Ctrl+F to search through session messages with highlighting",
+      "files": [
+        "packages/opencode/src/cli/cmd/tui/component/prompt/search.tsx",
+        "packages/opencode/src/cli/cmd/tui/context/theme.tsx",
+        "packages/opencode/src/cli/cmd/tui/routes/session/index.tsx"
+      ]
+    },
+    {
+      "pr": 4791,
+      "title": "Bash output with ANSI",
+      "author": "remorses",
+      "status": "open",
+      "description": "Full terminal emulation for bash output with color support",
+      "files": [
+        "packages/opencode/package.json",
+        "packages/opencode/src/cli/cmd/tui/component/prompt/index.tsx",
+        "packages/opencode/src/cli/cmd/tui/routes/session/index.tsx",
+        "packages/opencode/src/tool/bash.ts"
+      ]
+    },
+    {
+      "pr": 4900,
+      "title": "Double Ctrl+C to exit",
+      "author": "AmineGuitouni",
+      "status": "open",
+      "description": "Require double Ctrl+C within 2 seconds to prevent accidental exits",
+      "files": ["packages/opencode/src/cli/cmd/tui/component/prompt/index.tsx"]
+    },
+    {
+      "pr": 4709,
+      "title": "Live token usage during streaming",
+      "author": "arsham",
+      "status": "open",
+      "description": "Real-time token tracking and display during model responses",
+      "files": [
+        "packages/opencode/src/cli/cmd/tui/routes/session/index.tsx",
+        "packages/opencode/src/session/compaction.ts",
+        "packages/opencode/src/session/message-v2.ts",
+        "packages/opencode/src/session/processor.ts",
+        "packages/opencode/src/session/prompt.ts",
+        "packages/opencode/src/util/token.ts",
+        "packages/sdk/js/src/gen/types.gen.ts"
+      ]
+    },
+    {
+      "pr": 4865,
+      "title": "Subagents sidebar with clickable navigation",
+      "author": "franlol",
+      "status": "open",
+      "description": "Show subagents in sidebar with click-to-navigate and parent keybind",
+      "files": [
+        "packages/opencode/src/cli/cmd/tui/routes/session/header.tsx",
+        "packages/opencode/src/cli/cmd/tui/routes/session/index.tsx",
+        "packages/opencode/src/cli/cmd/tui/routes/session/sidebar.tsx",
+        "packages/opencode/src/config/config.ts",
+        "packages/sdk/js/src/gen/types.gen.ts"
+      ],
+      "criticalCode": [
+        {
+          "file": "packages/opencode/src/cli/cmd/tui/routes/session/index.tsx",
+          "description": "goToParent() function and session_parent command registration",
+          "markers": ["function goToParent()", "keybind: \"session_parent\""]
+        },
+        {
+          "file": "packages/opencode/src/config/config.ts",
+          "description": "session_parent keybind in Keybinds schema",
+          "markers": ["session_parent: z.string()"]
+        }
+      ]
+    },
+    {
+      "pr": 4515,
+      "title": "Show plugins in /status",
+      "author": "spoons-and-mirrors",
+      "status": "open",
+      "description": "Display configured plugins in /status dialog alongside MCP/LSP servers",
+      "files": ["packages/opencode/src/cli/cmd/tui/component/dialog-status.tsx"]
+    },
+    {
+      "pr": 0,
+      "title": "Toggle session header visibility",
+      "author": "fork",
+      "status": "fork-only",
+      "description": "Command palette option to hide/show the session header when sidebar is hidden",
+      "files": ["packages/opencode/src/cli/cmd/tui/routes/session/index.tsx", "packages/opencode/src/config/config.ts"]
+    },
+    {
+      "pr": 0,
+      "title": "Desktop slash commands and shell input mode",
+      "author": "fork",
+      "status": "fork-only",
+      "description": "Desktop app support for slash commands with autocomplete (type / to see commands), shell input mode (type ! to enter shell mode), and /undo /redo commands for session history navigation",
+      "files": ["packages/desktop/src/components/prompt-input.tsx"],
+      "criticalCode": [
+        {
+          "file": "packages/desktop/src/components/prompt-input.tsx",
+          "description": "UICommand type and UI_COMMANDS array for /undo and /redo",
+          "markers": ["type UICommand =", "const UI_COMMANDS: UICommand[]"]
+        },
+        {
+          "file": "packages/desktop/src/components/prompt-input.tsx",
+          "description": "Input mode state for shell command entry",
+          "markers": ["inputMode: \"normal\" | \"shell\"", "popoverMode: \"file\" | \"command\""]
+        },
+        {
+          "file": "packages/desktop/src/components/prompt-input.tsx",
+          "description": "Command autocomplete with useFilteredList",
+          "markers": ["const commandList = useFilteredList<AnyCommand>", "type AnyCommand = Command | UICommand"]
+        },
+        {
+          "file": "packages/desktop/src/components/prompt-input.tsx",
+          "description": "Undo/redo handler functions using session.revert",
+          "markers": ["const handleUndo = async", "const handleRedo = async"]
+        },
+        {
+          "file": "packages/desktop/src/components/prompt-input.tsx",
+          "description": "Shell mode detection (! prefix) in handleKeyDown",
+          "markers": ["store.inputMode === \"shell\"", "setStore(\"inputMode\", \"shell\")"]
+        },
+        {
+          "file": "packages/desktop/src/components/prompt-input.tsx",
+          "description": "SDK command execution",
+          "markers": ["sdk.client.session.command({", "matchedCommand = sync.data.command?.find"]
+        }
+      ]
+    },
+    {
+      "pr": 0,
+      "title": "Desktop Night Owl theme",
+      "author": "fork",
+      "status": "fork-only",
+      "description": "Night Owl theme for desktop app with custom CSS variables, plus renamed upstream Default theme to OpenCode",
+      "files": ["packages/ui/src/styles/theme.css", "packages/desktop/src/theme/apply-theme.ts"],
+      "criticalCode": [
+        {
+          "file": "packages/ui/src/styles/theme.css",
+          "description": "Night Owl theme CSS variables",
+          "markers": ["[data-theme=\"nightowl\"]"]
+        },
+        {
+          "file": "packages/desktop/src/theme/apply-theme.ts",
+          "description": "BASE_THEMES including OpenCode theme",
+          "markers": ["{ id: \"opencode\", name: \"OpenCode\" }"]
+        }
+      ]
+    },
+    {
+      "pr": 0,
+      "title": "Desktop theme/font pickers, branding, and inline header",
+      "author": "fork",
+      "status": "fork-only",
+      "description": "Inline header in layout.tsx with shuvcode ASCII branding (AsciiLogo when expanded, AsciiMark when collapsed), theme/font picker buttons, mobile session dropdown, and responsive layout. Upstream refactored header into separate component which lost these customizations.",
+      "files": [
+        "packages/desktop/src/pages/layout.tsx",
+        "packages/desktop/src/components/font-picker.tsx",
+        "packages/desktop/src/components/theme-picker.tsx",
+        "packages/ui/src/components/logo.tsx"
+      ],
+      "apiDependency": "useDialog",
+      "criticalCode": [
+        {
+          "file": "packages/desktop/src/pages/layout.tsx",
+          "description": "Inline header with shuvcode branding, theme/font pickers, mobile dropdown",
+          "markers": [
+            "import { AsciiLogo, AsciiMark }",
+            "import { ThemePicker }",
+            "import { FontPicker }",
+            "import { Select }",
+            "<AsciiLogo scale={0.55}",
+            "<AsciiMark scale={0.45}",
+            "<FontPicker />",
+            "<ThemePicker />",
+            "max-w-[calc(100vw-2rem)]",
+            "sm:hidden",
+            "hidden sm:flex"
+          ]
+        },
+        {
+          "file": "packages/desktop/src/components/font-picker.tsx",
+          "description": "Font picker dialog using useDialog API - MUST UPDATE when dialog.tsx API changes",
+          "markers": ["dialog.show(", "dialog.close()"]
+        },
+        {
+          "file": "packages/desktop/src/components/theme-picker.tsx",
+          "description": "Theme picker dialog using useDialog API - MUST UPDATE when dialog.tsx API changes",
+          "markers": ["dialog.show(", "dialog.close()"]
+        },
+        {
+          "file": "packages/desktop/src/pages/layout.tsx",
+          "description": "Mobile media query for auto-collapse sidebar/terminal/review",
+          "markers": [
+            "onMount(() =>",
+            "matchMedia(\"(max-width: 40rem)\")",
+            "layout.sidebar.close()",
+            "layout.terminal.close()",
+            "layout.review.tab()"
+          ]
+        },
+        {
+          "file": "packages/ui/src/components/logo.tsx",
+          "description": "AsciiLogo/AsciiMark definitions for shuvcode branding",
+          "markers": [
+            "export const AsciiMark",
+            "export const AsciiLogo",
+            "data-component=\"ascii-mark\"",
+            "data-component=\"ascii-logo\""
+          ]
+        }
+      ]
+    },
+    {
+      "pr": 0,
+      "title": "Desktop header font size and mobile dropdown fixes",
+      "author": "fork",
+      "status": "fork-only",
+      "description": "Consistent font sizes for project/session selects in header (size=large), and mobile session dropdown constrained to viewport width with proper truncation",
+      "files": ["packages/desktop/src/pages/layout.tsx"],
+      "criticalCode": [
+        {
+          "file": "packages/desktop/src/pages/layout.tsx",
+          "description": "Project and session Select components use size=large for consistent 14px font",
+          "markers": ["size=\"large\""]
+        },
+        {
+          "file": "packages/desktop/src/pages/layout.tsx",
+          "description": "Mobile session dropdown constrained to viewport and labels allow truncation",
+          "markers": ["max-w-[calc(100vw-2rem)]", "DropdownMenu.ItemLabel class=\"min-w-0\""]
+        }
+      ]
+    },
+    {
+      "pr": 0,
+      "title": "Share functionality for shuv.ai infrastructure",
+      "author": "fork",
+      "status": "fork-only",
+      "description": "Enable /share functionality for shuvcode by deploying rebranded share infrastructure to share.shuv.ai. Includes CLI defaults, import command dual-API support, and enterprise package rebranding.",
+      "files": [
+        "packages/enterprise/src/routes/share/[shareID].tsx",
+        "packages/enterprise/src/routes/s/[id].ts",
+        "packages/enterprise/src/entry-server.tsx",
+        "packages/enterprise/public/site.webmanifest",
+        "packages/opencode/src/share/share-next.ts",
+        "packages/opencode/src/cli/cmd/github.ts",
+        "packages/opencode/src/cli/cmd/import.ts",
+        "sst.share.config.ts",
+        ".github/workflows/snapshot.yml"
+      ],
+      "criticalCode": [
+        {
+          "file": "packages/enterprise/src/routes/share/[shareID].tsx",
+          "description": "Rebranded share page with shuvcode ASCII logo, GitHub link, and static OG image",
+          "markers": [
+            "import { AsciiLogo, AsciiMark } from",
+            "href=\"https://github.com/Latitudes-Dev/shuvcode\"",
+            "return `/social-share.png`",
+            "content=\"shuvcode - AI coding agent"
+          ]
+        },
+        {
+          "file": "packages/enterprise/src/routes/s/[id].ts",
+          "description": "Short URL redirect API route /s/{id} to /share/{id} with HTTP 301",
+          "markers": ["Location: `/share/${id}`", "status: 301"]
+        },
+        {
+          "file": "packages/opencode/src/share/share-next.ts",
+          "description": "Default share URL changed to share.shuv.ai with SHUVCODE_SHARE_URL env var support",
+          "markers": ["process.env.SHUVCODE_SHARE_URL", "https://share.shuv.ai"]
+        },
+        {
+          "file": "packages/opencode/src/cli/cmd/github.ts",
+          "description": "Share base URLs updated to share.shuv.ai / share.dev.shuv.ai",
+          "markers": ["https://share.dev.shuv.ai", "https://share.shuv.ai"]
+        },
+        {
+          "file": "packages/opencode/src/cli/cmd/import.ts",
+          "description": "Dual API format support for legacy opencode.ai and enterprise shuv.ai URLs",
+          "markers": [
+            "const legacyMatch = args.file.match",
+            "const enterpriseMatch = args.file.match",
+            "share.shuv.ai/api/share"
+          ]
+        },
+        {
+          "file": "sst.share.config.ts",
+          "description": "SST deployment config for share service to shuv.ai domain",
+          "markers": ["name: \"shuv-share\"", "domain: \"share.\" + domain"]
+        },
+        {
+          "file": ".github/workflows/snapshot.yml",
+          "description": "Share deployment step in CI workflow",
+          "markers": ["Deploy Share to Cloudflare", "sst.share.config.ts"]
+        },
+        {
+          "file": "packages/enterprise/src/entry-server.tsx",
+          "description": "HTML document with Night Owl theme, Meslo font family CSS vars, and shuvcode title",
+          "markers": [
+            "<title>shuvcode</title>",
+            "data-theme=\"nightowl\"",
+            "#011627",
+            "meslo",
+            "--font-family-sans: 'Meslo'"
+          ]
+        },
+        {
+          "file": "packages/enterprise/public/site.webmanifest",
+          "description": "Web app manifest name changed to shuvcode",
+          "markers": ["\"name\": \"shuvcode\""]
+        }
+      ]
+    },
+    {
+      "pr": 0,
+      "title": "Desktop mobile responsiveness and dev server improvements",
+      "author": "fork",
+      "status": "fork-only",
+      "description": "Auto-switch review panel to tab mode on mobile breakpoint, fix API URL resolution for localhost/HTTPS, add Vite proxy for API routes, and defensive array handling in global-sync",
+      "files": [
+        "packages/desktop/src/pages/layout.tsx",
+        "packages/desktop/src/app.tsx",
+        "packages/desktop/src/context/global-sync.tsx",
+        "packages/desktop/vite.config.ts"
+      ],
+      "criticalCode": [
+        {
+          "file": "packages/desktop/src/pages/layout.tsx",
+          "description": "Auto-switch review panel to tab mode on mobile breakpoint (40rem)",
+          "markers": ["if (event.matches) layout.review.tab()"]
+        },
+        {
+          "file": "packages/desktop/src/app.tsx",
+          "description": "Smart API URL resolution based on protocol and environment",
+          "markers": ["const isSecure = location.protocol === \"https:\"", "const useSameOrigin ="]
+        },
+        {
+          "file": "packages/desktop/src/context/global-sync.tsx",
+          "description": "Defensive array check for session list API response",
+          "markers": ["const data = Array.isArray(x.data) ? x.data : []"]
+        },
+        {
+          "file": "packages/desktop/vite.config.ts",
+          "description": "Vite dev server proxy configuration for API routes",
+          "markers": ["const apiRoutes = [", "proxy: Object.fromEntries"]
+        }
+      ]
+    },
+    {
+      "pr": 0,
+      "title": "Desktop mobile viewport overflow fix",
+      "author": "fork",
+      "status": "fork-only",
+      "description": "Fix horizontal overflow on mobile devices when viewing chat sessions. Content, text entry box, and submit button no longer spill outside viewport requiring horizontal scrolling.",
+      "files": ["packages/desktop/src/pages/session.tsx", "packages/desktop/src/components/prompt-input.tsx"],
+      "criticalCode": [
+        {
+          "file": "packages/desktop/src/pages/session.tsx",
+          "description": "Tabs.Content overflow-hidden and flex containers with min-w-0",
+          "markers": ["overflow-hidden", "min-w-0 min-h-0"]
+        },
+        {
+          "file": "packages/desktop/src/pages/session.tsx",
+          "description": "PromptInput containers with max-w-full for mobile and overflow-hidden",
+          "markers": ["max-w-full sm:max-w-146", "overflow-hidden"]
+        },
+        {
+          "file": "packages/desktop/src/components/prompt-input.tsx",
+          "description": "Root container max-w-full constraint",
+          "markers": ["max-w-full _max-h-[320px]"]
+        },
+        {
+          "file": "packages/desktop/src/components/prompt-input.tsx",
+          "description": "Bottom bar with min-w-0 overflow-hidden for proper flex shrinking",
+          "markers": ["min-w-0 overflow-hidden", "flex items-center justify-between min-w-0"]
+        },
+        {
+          "file": "packages/desktop/src/components/prompt-input.tsx",
+          "description": "Model button with truncation and responsive provider name visibility",
+          "markers": ["class=\"truncate\"", "hidden sm:inline", "min-w-0 max-w-full"]
+        }
+      ]
+    },
+    {
+      "pr": 0,
+      "title": "Desktop sidebar version display",
+      "author": "fork",
+      "status": "fork-only",
+      "description": "Display package version in sidebar bottom left when expanded, for easy version identification in web UI",
+      "files": [
+        "packages/desktop/src/pages/layout.tsx",
+        "packages/desktop/src/env.d.ts",
+        "packages/desktop/vite.config.ts"
+      ],
+      "criticalCode": [
+        {
+          "file": "packages/desktop/vite.config.ts",
+          "description": "Define __APP_VERSION__ from package.json at build time",
+          "markers": ["__APP_VERSION__", "pkg.version"]
+        },
+        {
+          "file": "packages/desktop/src/env.d.ts",
+          "description": "TypeScript declaration for __APP_VERSION__ global",
+          "markers": ["declare const __APP_VERSION__"]
+        },
+        {
+          "file": "packages/desktop/src/pages/layout.tsx",
+          "description": "Version display in sidebar bottom",
+          "markers": ["v{__APP_VERSION__}", "text-11-regular text-text-weaker"]
+        }
+      ]
+    }
+  ]
+}
